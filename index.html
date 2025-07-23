@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Libria AI - Perpustakaan</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+    body {
+      background: #f0f2f5;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .hero {
+      text-align: center;
+      padding: 50px 20px;
+      background: linear-gradient(135deg, #6e8efb, #a777e3);
+      color: white;
+    }
+    .hero h1 {
+      font-size: 2.5em;
+      margin-bottom: 20px;
+    }
+    .hero button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 1.2em;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background: #fff;
+      color: #333;
+      transition: background 0.3s;
+    }
+    .hero button:hover {
+      background: #e0e0e0;
+    }
+    .chat-container {
+      display: none;
+      flex: 1;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .chat-box {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      height: 400px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+    .message {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .message.ai {
+      background: #e6f3ff;
+      text-align: left;
+    }
+    .message.user {
+      background: #d1ffd1;
+      text-align: right;
+    }
+    .input-container {
+      display: flex;
+      gap: 10px;
+    }
+    #chat-input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1em;
+    }
+    #send-btn {
+      padding: 10px 20px;
+      border: none;
+      background: #6e8efb;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #send-btn:hover {
+      background: #5a7de6;
+    }
+    #barcode-section {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    #barcode-input, #qr-file {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    #qr-video {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+    }
+    @media (max-width: 600px) {
+      .hero h1 {
+        font-size: 1.8em;
+      }
+      .hero button {
+        font-size: 1em;
+        padding: 8px 16px;
+      }
+      .chat-box {
+        height: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <h1>Welcome to Libria AI!</h1>
+    <button onclick="showLogin()">Login</button>
+    <button onclick="showRegister()">Register</button>
+  </div>
+  <div id="barcode-section">
+    <h2>Scan Kartu Anggota</h2>
+    <input id="barcode-input" type="text" placeholder="Masukkan kode barcode (opsional)">
+    <p>ATAU</p>
+    <input id="qr-file" type="file" accept="image/*">
+    <video id="qr-video"></video>
+    <button onclick="startQRScanner()">Scan QR Code</button>
+    <button onclick="submitQR()">Submit</button>
+  </div>
+  <div id="chat-container" class="chat-container">
+    <div id="chat-box" class="chat-box"></div>
+    <div class="input-container">
+      <input id="chat-input" type="text" placeholder="Ketik pesan Anda...">
+      <button id="send-btn" onclick="sendMessage()">Kirim</button>
+    </div>
+  </div>
+
+  <script>
+    let userData = { nama: '', email: '', telepon: '', alamat: '' };
+    let currentField = 'nama';
+    let video = document.getElementById('qr-video');
+    let stream;
+
+    function showLogin() {
+      document.querySelector('.hero').style.display = 'none';
+      document.getElementById('barcode-section').style.display = 'block';
+      document.getElementById('chat-container').style.display = 'none';
+    }
+
+    function showRegister() {
+      document.querySelector('.hero').style.display = 'none';
+      document.getElementById('barcode-section').style.display = 'none';
+      document.getElementById('chat-container').style.display = 'flex';
+      addMessage('ai', 'Hai, selamat datang! Aku adalah Libria, asisten AI pemandu perpustakaan Anda. Sebelum kita mulai, bisakah saya mengetahui nama lengkap Anda?');
+    }
+
+    function addMessage(sender, text) {
+      const chatBox = document.getElementById('chat-box');
+      const message = document.createElement('div');
+      message.classList.add('message', sender);
+      message.textContent = text;
+      chatBox.appendChild(message);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      addMessage('user', message);
+      userData[currentField] = message;
+
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      const data = await response.json();
+
+      addMessage('ai', data.respond);
+      if (data.respond.includes('lengkap')) {
+        window.location.href = '/pemandu';
+      } else {
+        currentField = getNextField(data.respond);
+      }
+
+      input.value = '';
+    }
+
+    async function startQRScanner() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        video.play();
+        scanQR();
+      } catch (err) {
+        console.error('Camera error:', err);
+        alert('Gagal mengakses kamera. Silakan unggah gambar QR code.');
+      }
+    }
+
+    function scanQR() {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code) {
+        submitBarcode(code.data);
+        stopQRScanner();
+      } else {
+        requestAnimationFrame(scanQR);
+      }
+    }
+
+    function stopQRScanner() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.style.display = 'none';
+      }
+    }
+
+    document.getElementById('qr-file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) {
+              submitBarcode(code.data);
+            } else {
+              alert('QR code tidak terdeteksi.');
+            }
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    async function submitBarcode(barcode) {
+      if (!barcode) {
+        barcode = document.getElementById('barcode-input').value.trim();
+        if (!barcode) return alert('Masukkan kode barcode atau scan QR code.');
+      }
+
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barcode })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        window.location.href = '/pemandu';
+      } else {
+        alert('QR code atau barcode tidak valid.');
+      }
+    }
+
+    function getNextField(respond) {
+      if (respond.includes('email')) return 'email';
+      if (respond.includes('telepon')) return 'telepon';
+      if (respond.includes('alamat')) return 'alamat';
+      return currentField;
+    }
+
+    document.getElementById('chat-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>
